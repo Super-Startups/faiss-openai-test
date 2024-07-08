@@ -4,27 +4,32 @@ import sys
 import tiktoken
 
 from PyQt5.QtWidgets import QApplication, QWidget, QLabel, QPushButton, QVBoxLayout, QLineEdit, QTextEdit, QSplitter, \
-    QHBoxLayout, QFileDialog, QMessageBox, QDialog
+    QHBoxLayout, QFileDialog, QMessageBox, QDialog, QSlider
 from openai import OpenAI
 from openai.types.chat import ChatCompletionMessage
 
 import constants
 from index_utils import create_index_files, load_index, get_material
 
-
 EMBEDDINGS_MODEL = "text-embedding-3-small"
+
+MATERIALS_MARK = "<MATERIALS>"
 
 initial_prompt = """Ты фитнес-инструктор, тебя зовут ЖеняGPT и ты отвечаешь на вопросы клиентов в чате.
 Твоя задача – ответить на вопросы, основываясь на литературе и добавляя свои знания о тренировках.
 Отвечай максимально тезисно и коротко.
 Если тебе нужно больше информации, попроси у клиента уточнения.
-Если ты не знаешь ответа, скажи об этом клиенту и попроси уточнения."""
+Если ты не знаешь ответа, скажи об этом клиенту и попроси уточнения.
+Вот материалы: <MATERIALS>
+"""
 
 index = None
 
 open_ai_client = OpenAI(api_key=constants.API_KEY)
 
 model = "gpt-3.5-turbo"
+
+chunks_count = 2
 
 messages = []
 
@@ -35,8 +40,8 @@ def get_tokens_count(input_text):
     return len(tokens)
 
 
-def get_system_message():
-    return {"role": "system", "content": prompt_field.toPlainText()}
+def get_system_message(materials):
+    return {"role": "system", "content": prompt_field.toPlainText().replace(MATERIALS_MARK, materials)}
 
 
 def ask_gpt_with_context(context_messages):
@@ -77,29 +82,21 @@ def on_send():
 
     question_message = "\n Question: \n" + input_text
 
-    if len(messages) == 0:
-        messages.append(get_system_message())
-
     material = ''
 
     if index:
-        material = get_material(input_text, index, 2)
+        material = get_material(input_text, index, chunks_count)
     else:
         output_field.append("\n ERROR: Index is not loaded! \n")
 
-    material_part = ''
-    if material:
-        material_part = f"Here is the document with information to respond to the client: {material}\n"
-
     question_part = f"Here is the client's question: \n{input_text} \n"
-
-    full_question = material_part + question_part
 
     messages.append({"role": "user", "content": question_part})
 
-    messages_to_send = messages[-5:]
-    messages_to_send.append({"role": "user", "content": full_question})
+    system_message = get_system_message(material)
 
+    messages_to_send = messages[-5:]
+    messages_to_send.insert(0, system_message)
     content = '\n'.join([message['content'] for message in messages_to_send])
 
     tokens_count = get_tokens_count(content)
@@ -187,6 +184,12 @@ def on_clear_chat():
     input_field.clear()
 
 
+def on_chunks_count_changed(value):
+    global chunks_count
+    chunks_count = value
+    slider_label.setText(f"Chunks count: {chunks_count}")
+
+
 app = QApplication(sys.argv)
 window = QWidget()
 window.setMinimumSize(800, 600)
@@ -226,6 +229,18 @@ right_layout.addWidget(show_current_messages_button)
 show_materials_inspector_button = QPushButton("Show Materials Inspector")
 show_materials_inspector_button.clicked.connect(on_show_materials_inspector)
 right_layout.addWidget(show_materials_inspector_button)
+
+slider_label = QLabel(f"Chunks count: {chunks_count}")
+right_layout.addWidget(slider_label)
+
+chunks_count_slider = QSlider()
+chunks_count_slider.setMinimum(1)
+chunks_count_slider.setMaximum(10)
+chunks_count_slider.setValue(chunks_count)
+chunks_count_slider.setTickInterval(1)
+chunks_count_slider.setOrientation(1)
+chunks_count_slider.valueChanged.connect(on_chunks_count_changed)
+right_layout.addWidget(chunks_count_slider)
 
 prompt_label = QLabel("Prompt")
 right_layout.addWidget(prompt_label)
