@@ -57,7 +57,7 @@ def on_create_index():
     file_name, _ = file_dialog.getOpenFileName(window, "Open File", "",
                                                options=options)
     if file_name:
-        create_index_files(file_name, API_KEY)
+        create_index_files(file_name, constants.API_KEY)
 
 
 def on_load_index():
@@ -68,7 +68,7 @@ def on_load_index():
                                                options=options)
     if file_name:
         global index
-        index = load_index(file_name, EMBEDDINGS_MODEL, API_KEY)
+        index = load_index(file_name, EMBEDDINGS_MODEL, constants.API_KEY)
         print("Index loaded")
 
 
