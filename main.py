@@ -1,10 +1,11 @@
 import json
+import random
 import sys
 
 import tiktoken
 
 from PyQt5.QtWidgets import QApplication, QWidget, QLabel, QPushButton, QVBoxLayout, QLineEdit, QTextEdit, QSplitter, \
-    QHBoxLayout, QFileDialog, QMessageBox, QDialog, QSlider
+    QHBoxLayout, QFileDialog, QMessageBox, QDialog, QSlider, QScrollArea
 from openai import OpenAI
 from openai.types.chat import ChatCompletionMessage
 
@@ -32,6 +33,8 @@ model = "gpt-3.5-turbo"
 chunks_count = 2
 
 messages = []
+
+additional_question_probability = 70
 
 
 def get_tokens_count(input_text):
@@ -80,8 +83,6 @@ def on_load_index():
 def on_send():
     input_text = input_field.toPlainText()
 
-    question_message = "\n Question: \n" + input_text
-
     material = ''
 
     if index:
@@ -97,14 +98,21 @@ def on_send():
 
     messages_to_send = messages[-5:]
     messages_to_send.insert(0, system_message)
-    content = '\n'.join([message['content'] for message in messages_to_send])
 
+    if random.randint(0, 100) < additional_question_probability:
+        not_empty_additional_questions = [edit.toPlainText() for edit in text_edits if edit.toPlainText()]
+        additional_question = random.choice(not_empty_additional_questions)
+        messages.append({"role": "user", "content": f"Additional question: {additional_question}"})
+        messages_to_send.append({"role": "user", "content": f"Additional question: {additional_question}"})
+
+    content = '\n'.join([message['content'] for message in messages_to_send])
     tokens_count = get_tokens_count(content)
 
     answer = ask_gpt_with_context(messages_to_send)
 
     messages.append({"role": answer.role, "content": answer.content})
 
+    question_message = "\n Question: \n" + input_text
     answer_message = f"\n Answer. Tokents used: {tokens_count}: \n" + answer.content
 
     output_field.append(question_message)
@@ -190,6 +198,12 @@ def on_chunks_count_changed(value):
     slider_label.setText(f"Chunks count: {chunks_count}")
 
 
+def on_additional_question_probability_changed(value):
+    global additional_question_probability
+    additional_question_probability = value
+    additional_question_probability_label.setText(f"Additional Question Probability: {additional_question_probability}")
+
+
 app = QApplication(sys.argv)
 window = QWidget()
 window.setMinimumSize(800, 600)
@@ -241,6 +255,33 @@ chunks_count_slider.setTickInterval(1)
 chunks_count_slider.setOrientation(1)
 chunks_count_slider.valueChanged.connect(on_chunks_count_changed)
 right_layout.addWidget(chunks_count_slider)
+
+additional_question_probability_label = QLabel(f"Additional Question Probability: {additional_question_probability}")
+right_layout.addWidget(additional_question_probability_label)
+
+additional_question_probability_slider = QSlider()
+additional_question_probability_slider.setMinimum(0)
+additional_question_probability_slider.setMaximum(100)
+additional_question_probability_slider.setValue(additional_question_probability)
+additional_question_probability_slider.setTickInterval(1)
+additional_question_probability_slider.setOrientation(1)
+additional_question_probability_slider.valueChanged.connect(on_additional_question_probability_changed)
+
+right_layout.addWidget(additional_question_probability_slider)
+
+scroll_area = QScrollArea()
+scroll_area.setWidgetResizable(True)
+container = QWidget()
+scroll_area.setWidget(container)
+right_layout.addWidget(scroll_area)
+
+container_layout = QVBoxLayout(container)
+container_layout.addWidget(QLabel("Additional Questions"))
+
+text_edits = [QTextEdit() for _ in range(10)]
+
+for text_edit in text_edits:
+    container_layout.addWidget(text_edit)
 
 prompt_label = QLabel("Prompt")
 right_layout.addWidget(prompt_label)
