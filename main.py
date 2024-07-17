@@ -99,12 +99,6 @@ def on_send():
     messages_to_send = messages[-5:]
     messages_to_send.insert(0, system_message)
 
-    if random.randint(0, 100) < additional_question_probability:
-        not_empty_additional_questions = [edit.toPlainText() for edit in text_edits if edit.toPlainText()]
-        additional_question = random.choice(not_empty_additional_questions)
-        messages.append({"role": "user", "content": f"Additional question: {additional_question}"})
-        messages_to_send.append({"role": "user", "content": f"Additional question: {additional_question}"})
-
     content = '\n'.join([message['content'] for message in messages_to_send])
     tokens_count = get_tokens_count(content)
 
@@ -118,6 +112,20 @@ def on_send():
     output_field.append(question_message)
     output_field.append(answer_message)
     input_field.clear()
+
+    if random.randint(0, 100) < additional_question_probability:
+        send_additional_question()
+
+
+def send_additional_question():
+    messages_to_send = messages[-5:]
+    not_empty_additional_questions = [edit.toPlainText() for edit in text_edits if edit.toPlainText()]
+    additional_question = random.choice(not_empty_additional_questions)
+    messages_to_send.append({"role": "user", "content": f"Additional question: {additional_question}"})
+    answer = ask_gpt_with_context(messages_to_send)
+    messages.append({"role": answer.role, "content": answer.content})
+    answer_message = f"\n Assistant:  \n" + answer.content
+    output_field.append(answer_message)
 
 
 def on_show_current_messages():
